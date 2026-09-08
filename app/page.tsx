@@ -5,7 +5,7 @@ const LIFF_ID = "2010741545-WOEIhIFQ";
 const APPS_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbwiK82lzhH5CM53CVElVJKsTORSVPamI91JmZNJC39QICS_hPlG9irseKKo4o8Bbd3-eA/exec";
 const OA_URL = "https://line.me/R/oaMessage/%40deliveree_driver/?";
 type Screen = "connecting" | "form" | "submitting" | "result" | "error";
-type LiffApi = { init(o:{liffId:string}):Promise<void>; isLoggedIn():boolean; login(o?:{redirectUri?:string}):void; getAccessToken():string|null; getProfile():Promise<{userId:string;displayName:string}> };
+type LiffApi = { init(o:{liffId:string}):Promise<void>; isLoggedIn():boolean; isInClient():boolean; login(o?:{redirectUri?:string}):void; getAccessToken():string|null; getProfile():Promise<{userId:string;displayName:string}>; sendMessages(messages:Array<{type:"text";text:string}>):Promise<void> };
 type Reply = { success?:boolean; message?:string; referenceId?:string; recordId?:string; name?:string; phoneLocal?:string };
 declare global { interface Window { liff?: LiffApi } }
 
@@ -18,7 +18,7 @@ export default function Home(){
   const [message,setMessage]=useState("");
   const [profileName,setProfileName]=useState("");
   const [lineUserId,setLineUserId]=useState("");
-  const [result,setResult]=useState({name:"",phone:"",reference:""});
+  const [result,setResult]=useState({name:"",phone:"",reference:"",confirmationSent:false});
   const [errors,setErrors]=useState<Record<string,string>>({});
 
   useEffect(()=>{let active=true;(async()=>{try{const liff=await waitForLiff();await liff.init({liffId:LIFF_ID});if(!liff.isLoggedIn()){liff.login({redirectUri:location.href.split("#")[0]});return}const profile=await liff.getProfile();if(!liff.getAccessToken())throw new Error("LINE did not provide an access token.");if(active){setProfileName(profile.displayName||"");setLineUserId(profile.userId||"");setScreen("form")}}catch(error){if(active){setMessage(error instanceof Error?error.message:"Unable to connect to LINE.");setScreen("error")}}})();return()=>{active=false}},[]);
@@ -32,7 +32,14 @@ export default function Home(){
     try{const accessToken=window.liff?.getAccessToken();if(!accessToken||!lineUserId)throw new Error("Your LINE session has expired. Please reopen this page from LINE.");
       const response=await fetch(APPS_SCRIPT_URL,{method:"POST",headers:{"content-type":"text/plain;charset=utf-8"},body:JSON.stringify({action:"submit_form",title,firstName,lastName,phoneLocal,lineUserId,accessToken,submissionSource:"LIFF GitHub Pages"}),redirect:"follow"});
       const reply=await response.json() as Reply;if(!reply.success)throw new Error(reply.message||"Unable to submit information.");
-      setResult({name:reply.name||[title,firstName,lastName].join(" "),phone:reply.phoneLocal||phoneLocal,reference:reply.referenceId||reply.recordId||""});setScreen("result");
+      const submittedResult={name:reply.name||[title,firstName,lastName].join(" "),phone:reply.phoneLocal||phoneLocal,reference:reply.referenceId||reply.recordId||""};
+      const confirmationText=`ข้อมูลของฉันถูกบันทึกแล้ว (My information has been submitted)\nชื่อ (Name): ${submittedResult.name}\nเบอร์โทรศัพท์ (Phone): ${submittedResult.phone}\nรหัสอ้างอิง (Ref): ${submittedResult.reference}`;
+      const liff=window.liff;
+      let confirmationSent=false;
+      if(liff?.isInClient()){
+        try{await liff.sendMessages([{type:"text",text:confirmationText}]);confirmationSent=true}catch(error){console.error("LINE confirmation failed",error)}
+      }
+      setResult({...submittedResult,confirmationSent});setScreen("result");
     }catch(error){setMessage(error instanceof Error?error.message:"Unable to submit information.");setScreen("error")}
   }
   function clear(field:string){if(errors[field])setErrors(current=>({...current,[field]:""}))}
@@ -41,7 +48,7 @@ export default function Home(){
     {screen==="connecting"&&<Status icon="🚚" title="ยินดีต้อนรับสู่ Deliveree Driver Hub" english="Welcome to Deliveree Driver Hub" detail="กำลังเชื่อมต่อ LINE… / Connecting to LINE…"/>}
     {screen==="submitting"&&<Status icon="⏳" title="กำลังบันทึกข้อมูล" english="Submitting your information" detail="กรุณารอสักครู่ / Please wait a moment."/>}
     {screen==="error"&&<Status danger icon="!" title="ไม่สามารถดำเนินการได้" english="Unable to continue" detail={message} action="ลองอีกครั้ง (Try again)" onAction={()=>location.reload()}/>} 
-    {screen==="result"&&<Status icon="✓" title="บันทึกข้อมูลเรียบร้อยแล้ว" english="Information submitted" detail={`ชื่อ (Name): ${result.name}\nเบอร์โทรศัพท์ (Phone): ${result.phone}\nรหัสอ้างอิง (Ref): ${result.reference}\n\nกรุณาเก็บรหัสอ้างอิงนี้ไว้สำหรับการติดต่อเจ้าหน้าที่`} action="กลับไปที่แชท LINE" onAction={()=>{location.href=OA_URL+encodeURIComponent(confirmation)}}/>}
+    {screen==="result"&&<Status icon="✓" title="บันทึกข้อมูลเรียบร้อยแล้ว" english="Information submitted" detail={`ชื่อ (Name): ${result.name}\nเบอร์โทรศัพท์ (Phone): ${result.phone}\nรหัสอ้างอิง (Ref): ${result.reference}\n\n${result.confirmationSent?"ส่งข้อความยืนยันไปยังแชท LINE แล้ว":"ไม่สามารถส่งข้อความอัตโนมัติได้ กรุณากดปุ่มด้านล่างเพื่อส่งข้อความยืนยัน"}`} action="กลับไปที่แชท LINE" onAction={()=>{location.href=OA_URL+encodeURIComponent(confirmation)}}/>}
     {screen==="form"&&<form onSubmit={submit} className="form" noValidate><header><h1>ข้อมูลเบื้องต้น</h1><p>Basic Information{profileName?` · ${profileName}`:""}</p><p className="requiredNote">* จำเป็นต้องกรอกทุกช่อง / All fields are required.</p></header>
       <label>คำนำหน้า <span className="required">*</span> <small>(Title)</small><select name="title" required defaultValue="" aria-invalid={!!errors.title} aria-describedby="title-error" onChange={()=>clear("title")}><option value="" disabled>เลือกคำนำหน้า</option><option>นาย</option><option>นาง</option><option>นางสาว</option></select>{errors.title&&<em id="title-error" className="fieldError">{errors.title}</em>}</label>
       <label>ชื่อ <span className="required">*</span> <small>(First Name)</small><input name="firstName" required maxLength={80} autoComplete="given-name" aria-invalid={!!errors.firstName} aria-describedby="firstName-error" onInput={()=>clear("firstName")}/>{errors.firstName&&<em id="firstName-error" className="fieldError">{errors.firstName}</em>}</label>
@@ -52,3 +59,4 @@ export default function Home(){
 }
 
 function Status({icon,title,english,detail,action,onAction,danger=false}:{icon:string;title:string;english:string;detail:string;action?:string;onAction?:()=>void;danger?:boolean}){return <div className={`status tone-${danger?"danger":"success"}`}><div className="statusIcon">{icon}</div><h1>{title}</h1><h2>{english}</h2><p>{detail}</p>{action&&<button onClick={onAction}>{action}</button>}</div>}
+
