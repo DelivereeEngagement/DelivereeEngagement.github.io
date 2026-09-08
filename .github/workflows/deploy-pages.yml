@@ -26,9 +26,7 @@ jobs:
       - run: pnpm run build
       - name: Prepare GitHub Pages files
         shell: bash
-        run: |
-          find dist/client -type f \( -name '*.html' -o -name '*.rsc' \) -print0 | xargs -0 sed -i 's|\"/_next/|\"/deliveree-driver-hub/_next/|g'
-          touch dist/client/.nojekyll
+        run: touch dist/client/.nojekyll
       - uses: actions/configure-pages@v5
       - uses: actions/upload-pages-artifact@v3
         with:
