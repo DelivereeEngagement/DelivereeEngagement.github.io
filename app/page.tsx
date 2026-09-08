@@ -37,7 +37,14 @@ export default function Home(){
       const liff=window.liff;
       let confirmationSent=false;
       if(liff?.isInClient()){
-        try{await liff.sendMessages([{type:"text",text:confirmationText}]);confirmationSent=true}catch(error){console.error("LINE confirmation failed",error)}
+        try{
+          await liff.sendMessages([{type:"text",text:confirmationText}]);confirmationSent=true;
+          try{
+            const trackingResponse=await fetch(APPS_SCRIPT_URL,{method:"POST",headers:{"content-type":"text/plain;charset=utf-8"},body:JSON.stringify({action:"mark_line_confirmation_sent",lineUserId,accessToken,referenceId:submittedResult.reference}),redirect:"follow"});
+            const trackingReply=await trackingResponse.json() as Reply;
+            if(!trackingReply.success)console.error("Confirmation tracking failed",trackingReply.message);
+          }catch(error){console.error("Confirmation tracking failed",error)}
+        }catch(error){console.error("LINE confirmation failed",error)}
       }
       setResult({...submittedResult,confirmationSent});setScreen("result");
     }catch(error){setMessage(error instanceof Error?error.message:"Unable to submit information.");setScreen("error")}
