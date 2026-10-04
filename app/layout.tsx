@@ -3,7 +3,8 @@ import "./globals.css";
 
 export const metadata: Metadata = {
   title: "Deliveree Driver Hub",
-  description: "Submit your Deliveree driver registration information through LINE.",
+  description: "Connect your registered Deliveree phone number with LINE.",
+  icons: { icon: "/deliveree-logo.png", apple: "/deliveree-logo.png" },
 };
 
 export default function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {
