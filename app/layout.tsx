@@ -2,8 +2,8 @@ import type { Metadata } from "next";
 import "./globals.css";
 
 export const metadata: Metadata = {
-  title: "Deliveree Driver Hub",
-  description: "Connect your registered Deliveree phone number with LINE.",
+  title: "LINE OA สำหรับผู้ขนส่งเดลิเวอรี",
+  description: "เชื่อมต่อ LINE กับเบอร์โทรศัพท์ที่ลงทะเบียนกับเดลิเวอรี",
   icons: { icon: "/deliveree-logo.png", apple: "/deliveree-logo.png" },
 };
 
